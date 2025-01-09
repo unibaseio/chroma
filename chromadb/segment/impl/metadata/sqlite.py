@@ -35,10 +35,20 @@ from itertools import groupby
 from functools import reduce
 import sqlite3
 
+from chromadb.utils.hub import hub_client
+import json
+import numpy as np
+
 import logging
 
 logger = logging.getLogger(__name__)
 
+def numpy_to_json(obj):
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    if isinstance(obj, UUID):
+        return str(obj)
+    raise TypeError(f"Object of type {obj.__class__.__name__} is not JSON serializable")
 
 class SqliteMetadataSegment(MetadataReader):
     _consumer: Consumer
@@ -272,7 +282,7 @@ class SqliteMetadataSegment(MetadataReader):
     @trace_method("SqliteMetadataSegment._insert_record", OpenTelemetryGranularity.ALL)
     def _insert_record(self, cur: Cursor, record: LogRecord, upsert: bool) -> None:
         """Add or update a single EmbeddingRecord into the DB"""
-
+        
         t = Table("embeddings")
         q = (
             self._db.querybuilder()
@@ -303,6 +313,23 @@ class SqliteMetadataSegment(MetadataReader):
 
         if record["record"]["metadata"]:
             self._update_metadata(cur, id, record["record"]["metadata"])
+        
+        
+        #print(f"=== record: {record}")
+        pid = str(self._id) + "_" + record['record']['id']
+
+        record_dict = {}
+        record_dict['id'] = str(record['record']['id'])
+        record_dict['metadata'] = record['record']['metadata']
+        record_dict['embedding'] = record['record']['embedding']
+        
+        try:
+            msgdict = json.dumps(record_dict, ensure_ascii=False, default=numpy_to_json)
+        except Exception as e:
+            msgdict = json.dumps(record_dict, default=numpy_to_json)
+            
+        #print(f"=== record: {pid}")
+        hub_client.upload_hub(str(self._collection_id), pid, msgdict)
 
     @trace_method(
         "SqliteMetadataSegment._update_metadata", OpenTelemetryGranularity.ALL

@@ -194,7 +194,8 @@ class SqlSysDB(SqlDB, SysDB):
             except Exception as e:
                 logger.error(f"Error inserting segment metadata: {e}")
                 raise
-
+        
+        #print(f"segment: {segment}")        
 
     # TODO(rohit): Investigate and remove this method completely.
     @trace_method("SqlSysDB.create_segment", OpenTelemetryGranularity.ALL)
